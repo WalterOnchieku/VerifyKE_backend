@@ -26,7 +26,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,12 +37,10 @@ from app.db.models import User
 # Create a password hashing configuration.
 # bcrypt is used to securely hash passwords.
 # The application will never store the user's actual password in the database.
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated = "auto"
-)
+password_hash = PasswordHash.recommended()
 
 def hash_password(password: str) -> str:
+    
     """
     Convert a plain-text password into a secure password hash.
 
@@ -50,7 +48,7 @@ def hash_password(password: str) -> str:
         password: "mypassword123"
         becomes something similar to: "$2b$12$...."
     """
-    return pwd_context.hash(password)
+    return password_hash.hash(password)
 
 
 def verify_password(
@@ -67,7 +65,7 @@ def verify_password(
         False -> password is incorrect
     """
 
-    return pwd_context.verify(
+    return password_hash.verify(
         plain_password,
         hashed_password,
     )
@@ -199,6 +197,29 @@ async def get_current_user(
     # Return the actual SQLAlchemy User object
     return user
 
+# ADMIN AUTHORIZATION
+async def require_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Require the authenticated user to have the admin role.
+
+    Authentication answers:
+
+        "Who are you?"
+
+    Authorization answers:
+
+        "Are you allowed to perform this action?"
+
+    This function handles the second question.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user
 
 
 
