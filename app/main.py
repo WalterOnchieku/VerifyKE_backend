@@ -13,7 +13,7 @@ The routers contain the actual endpoints for:
 
 from fastapi import FastAPI
 
-from app.api.routes import auth, entities, reports
+from app.api.routes import auth, entities, reports, admin
 
 # CREATE FASTAPI APPLICATION
 
@@ -40,6 +40,10 @@ app.include_router(entities.router)
 # Report endpoints.
 # Available under: /reports/...
 app.include_router(reports.router)
+
+# Admin endpoints.
+# Available under: /admin/...
+app.include_router(admin.router)
 
 # BASIC APPLICATION ENDPOINTS
 
