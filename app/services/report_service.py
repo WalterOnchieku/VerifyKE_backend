@@ -3,15 +3,19 @@ VerifyKE report service.
 
 This file contains the business logic related to reports.
 
-The API routes should handle HTTP requests and responses,
-while this service handles the actual application logic
-for creating and retrieving reports.
+The service is responsible for:
+- Validating the entity.
+- Creating the report.
+- Saving the report to PostgreSQL.
+- Publishing a report-created event to RabbitMQ.
 """
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Entity, Report
 from app.schemas.report import ReportCreate
+from app.messaging.rabbitmq import publish_event
+from app,messaging.events import report_created_event
 
 async def create_report(
         db: AsyncSession,
@@ -30,11 +34,14 @@ async def create_report(
     Returns:
         The newly created Report database object.
     """
+    """
+    Create a new report and publish a RabbitMQ event.
 
-    # Look for the entity that the report is about.
-    #
-    # For example, if entity_id is 12, we look for
-    # the Entity whose database ID is 12.
+    The database transaction is completed before the
+    RabbitMQ event is published.
+    """
+
+    # STEP 1 — Verify that the entity exists
     result = await db.execute(
         select(Entity).where(
             Entity.id==report_data.entity_id
@@ -66,6 +73,19 @@ async def create_report(
     # Refresh the object so SQLAlchemy loads values generated
     # by the database, such as the new report ID
     await db.refresh(report)
+
+    # Create the RabbitMQ event
+    event = report_created_event(
+        report_id=report.id,
+        user_is=report.user_id,
+        entity_id=report.entity_id,
+    )
+
+    # Publish the event
+    await publish_event(
+        queue_name = "report_created",
+        event = event,
+    )
 
     # Return the newly created report
     return report
